@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 # INSTALL PROTECT MANAGER - PTERODACTYL PANEL
-# Version: 2.0
+# Version: 2.1 (Fixed)
 # ============================================================
 
 set -e
@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     🛡️  INSTALL PROTECT MANAGER v2.0            ║${NC}"
+echo -e "${BLUE}║     🛡️  INSTALL PROTECT MANAGER v2.1 (Fixed)    ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════╝${NC}"
 
 # Cek root
@@ -40,12 +40,13 @@ echo -e "${GREEN}✅ Panel ditemukan di $PANEL_PATH${NC}"
 echo -e "${YELLOW}📦 Membuat backup...${NC}"
 
 BACKUP_DIR="/root/panel_backup_protect_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "$BACKUP_DIR"
 
-# Backup file yang akan dimodifikasi
-cp -r resources/views/admin/* "$BACKUP_DIR/views/" 2>/dev/null || mkdir -p "$BACKUP_DIR/views"
-cp -r routes/admin.php "$BACKUP_DIR/" 2>/dev/null || true
-cp -r resources/views/layouts/admin.blade.php "$BACKUP_DIR/" 2>/dev/null || true
+# FIX: mkdir dulu SEBELUM cp, bukan pakai || mkdir
+mkdir -p "$BACKUP_DIR/views"
+
+cp -r resources/views/admin/* "$BACKUP_DIR/views/" 2>/dev/null || true
+cp routes/admin.php "$BACKUP_DIR/admin.php.bak" 2>/dev/null || true
+cp resources/views/layouts/admin.blade.php "$BACKUP_DIR/admin.blade.php.bak" 2>/dev/null || true
 
 echo -e "${GREEN}✅ Backup disimpan di: $BACKUP_DIR${NC}"
 
@@ -69,10 +70,10 @@ cat > resources/views/admin/protect-manager.blade.php << 'EOF'
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info">
-                        <i class="fas fa-shield-alt"></i> 
-                        <b>Protect Manager aktif!</b> Panel ini hanya bisa diakses oleh Admin ID 1.
+                        <i class="fas fa-shield-alt"></i>
+                        <b>Protect Manager aktif!</b> Panel ini hanya bisa diakses oleh Root Admin.
                     </div>
-                    
+
                     <div class="row mt-4">
                         <div class="col-md-6">
                             <div class="card">
@@ -94,7 +95,7 @@ cat > resources/views/admin/protect-manager.blade.php << 'EOF'
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mt-4">
                         <div class="alert alert-warning">
                             <i class="fas fa-exclamation-triangle"></i>
@@ -116,22 +117,25 @@ echo -e "${GREEN}✅ View dibuat: resources/views/admin/protect-manager.blade.ph
 # ============================================================
 echo -e "${YELLOW}🛣️ Menambahkan Route...${NC}"
 
-# Cek apakah route sudah ada
 if grep -q "protect-manager" routes/admin.php; then
     echo -e "${YELLOW}⚠️ Route sudah ada, skip...${NC}"
 else
-    # Backup route
-    cp routes/admin.php "$BACKUP_DIR/admin.php.bak"
-    
-    # Tambah route di awal
-    sed -i "1i\\
-Route::get('/protect-manager', function () {\\
-    if (auth()->user()->id !== 1) {\\
-        abort(403, 'Hanya Admin ID 1 yang bisa akses!');\\
-    }\\
-    return view('admin.protect-manager');\\
-})->name('admin.protect.manager');\\
-" routes/admin.php
+    # FIX: APPEND ke akhir file — BUKAN insert di baris 1 (yang merusak <?php)
+    cat >> routes/admin.php << 'ROUTE_EOF'
+
+/*
+|--------------------------------------------------------------------------
+| Protect Manager Route
+|--------------------------------------------------------------------------
+*/
+Route::get('/protect-manager', function () {
+    // FIX: pakai root_admin bukan hardcode id=1, lebih aman
+    if (!auth()->user()->root_admin) {
+        abort(403, 'Hanya Root Admin yang bisa akses halaman ini!');
+    }
+    return view('admin.protect-manager');
+})->name('admin.protect.manager');
+ROUTE_EOF
 
     echo -e "${GREEN}✅ Route ditambahkan ke routes/admin.php${NC}"
 fi
@@ -143,25 +147,70 @@ echo -e "${YELLOW}📌 Menambahkan Sidebar Menu...${NC}"
 
 LAYOUT_FILE="resources/views/layouts/admin.blade.php"
 
-if grep -q "Protect Manager" "$LAYOUT_FILE"; then
+if grep -q "protect-manager" "$LAYOUT_FILE"; then
     echo -e "${YELLOW}⚠️ Sidebar sudah ada, skip...${NC}"
 else
-    cp "$LAYOUT_FILE" "$BACKUP_DIR/admin.blade.php.bak"
-    
-    # Cari posisi sidebar navigation
-    if grep -q "nav-item" "$LAYOUT_FILE"; then
-        # Tambahkan sebelum </ul> atau setelah nav-item terakhir
-        sed -i "/<\/ul>/i\\
-                <li class=\"nav-item\">\\
-                    <a href=\"{{ route('admin.protect.manager') }}\" class=\"nav-link\">\\
-                        <i class=\"fas fa-shield-alt\"></i>\\
-                        <span>Protect Manager</span>\\
-                    </a>\\
-                </li>\\
-" "$LAYOUT_FILE"
+    # FIX: Pakai Python3 untuk insert multiline yang akurat
+    # Cari marker unik di sidebar Pterodactyl, insert menu SETELAH nav-item itu
+    # Target: nav-item yang berisi link ke /admin/settings atau /admin/users
+
+    python3 - "$LAYOUT_FILE" << 'PYEOF'
+import sys
+
+filepath = sys.argv[1]
+
+with open(filepath, 'r') as f:
+    content = f.read()
+
+# Menu item yang mau disisipkan
+menu_item = """
+                <li class="nav-item">
+                    <a href="{{ route('admin.protect.manager') }}" class="nav-link {{ Request::is('admin/protect-manager') ? 'active' : '' }}">
+                        <i class="fas fa-shield-alt nav-icon"></i>
+                        <p>Protect Manager</p>
+                    </a>
+                </li>"""
+
+# Coba cari marker yang ada di sidebar Pterodactyl (urutan prioritas)
+markers = ['admin/settings', 'admin/users', 'admin/nests', 'admin/nodes']
+found = False
+
+for marker in markers:
+    idx = content.find(marker)
+    if idx == -1:
+        continue
+    # Cari penutup </li> terdekat setelah marker ini
+    close_li = content.find('</li>', idx)
+    if close_li == -1:
+        continue
+    insert_pos = close_li + len('</li>')
+    content = content[:insert_pos] + menu_item + content[insert_pos:]
+    found = True
+    print(f"OK: menu disisipkan setelah marker '{marker}'")
+    break
+
+if not found:
+    print("FAIL: tidak ada marker yang cocok di layout file")
+    sys.exit(1)
+
+with open(filepath, 'w') as f:
+    f.write(content)
+PYEOF
+
+    # Verifikasi hasil
+    if grep -q "protect-manager" "$LAYOUT_FILE"; then
         echo -e "${GREEN}✅ Sidebar menu ditambahkan${NC}"
     else
-        echo -e "${RED}❌ Tidak bisa menemukan posisi sidebar${NC}"
+        echo -e "${RED}❌ Gagal tambah sidebar otomatis${NC}"
+        echo -e "${YELLOW}⚠️ Tambah manual ke $LAYOUT_FILE:${NC}"
+        cat << 'MANUAL'
+<li class="nav-item">
+    <a href="{{ route('admin.protect.manager') }}" class="nav-link">
+        <i class="fas fa-shield-alt nav-icon"></i>
+        <p>Protect Manager</p>
+    </a>
+</li>
+MANUAL
     fi
 fi
 
@@ -190,13 +239,15 @@ echo -e "${GREEN}✅ Permission diset${NC}"
 # ============================================================
 # SELESAI
 # ============================================================
-echo -e ""
+echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║     ✅ INSTALL PROTECT MANAGER SELESAI!           ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════╝${NC}"
-echo -e ""
-echo -e "${BLUE}📍 Akses: Panel → Sidebar → Protect Manager${NC}"
-echo -e "${BLUE}🔒 Hanya Admin ID 1 yang bisa akses${NC}"
-echo -e ""
+echo ""
+echo -e "${BLUE}📍 Akses: Panel Admin → Sidebar → Protect Manager${NC}"
+echo -e "${BLUE}🔒 Hanya Root Admin yang bisa akses${NC}"
+echo ""
 echo -e "${YELLOW}📁 Backup disimpan di: $BACKUP_DIR${NC}"
-echo -e "${YELLOW}⚠️ Jika error, restore: cp -r $BACKUP_DIR/* /var/www/pterodactyl/${NC}"
+echo -e "${YELLOW}⚠️ Kalau mau restore manual:${NC}"
+echo -e "${YELLOW}   cp $BACKUP_DIR/admin.php.bak /var/www/pterodactyl/routes/admin.php${NC}"
+echo -e "${YELLOW}   cp $BACKUP_DIR/admin.blade.php.bak /var/www/pterodactyl/resources/views/layouts/admin.blade.php${NC}"
