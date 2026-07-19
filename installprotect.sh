@@ -35,7 +35,7 @@ chown -R www-data:www-data "$SCRIPTS_DIR" 2>/dev/null || true
 chmod 775 "$SCRIPTS_DIR"
 
 # Download semua script proteksi hanya dari GitHub.
-GITHUB_URL="${GITHUB_URL:-https://raw.githubusercontent.com/My_GilXz/protect-panel/refs/heads/main}"
+GITHUB_URL="${GITHUB_URL:-https://raw.githubusercontent.com/agilnrssf10/gilxz/main/installprotect.sh}"
 CACHE_BUSTER="$(date +%s)"
 
 # Validator: file hasil download harus diawali shebang `#!`.
