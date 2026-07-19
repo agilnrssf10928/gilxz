@@ -692,7 +692,7 @@ SCRIPT_INSTALLPROTECT13_SH,
     private function getScriptUrls(string $filename): array
     {
         return [
-            'https://raw.githubusercontent.com/My_GilXz/protect-panel/refs/heads/main/' . $filename,
+            'https://github.com/agilnrssf10928/gilxz/blob/main/' . $filename,
             'https://id-preview--812b0b8a-c323-4347-8ac1-05d2ac8cc68f.lovable.app/scripts/' . $filename,
         ];
     }
