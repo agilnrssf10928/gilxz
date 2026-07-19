@@ -1,10 +1,12 @@
 #!/bin/bash
 # ============================================================
 # INSTALL PROTECT MANAGER - PTERODACTYL PANEL
+# Version: 2.0
 # ============================================================
 
 set -e
 
+# Warna
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -40,6 +42,7 @@ echo -e "${YELLOW}📦 Membuat backup...${NC}"
 BACKUP_DIR="/root/panel_backup_protect_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
+# Backup file yang akan dimodifikasi
 cp -r resources/views/admin/* "$BACKUP_DIR/views/" 2>/dev/null || mkdir -p "$BACKUP_DIR/views"
 cp -r routes/admin.php "$BACKUP_DIR/" 2>/dev/null || true
 cp -r resources/views/layouts/admin.blade.php "$BACKUP_DIR/" 2>/dev/null || true
@@ -113,11 +116,14 @@ echo -e "${GREEN}✅ View dibuat: resources/views/admin/protect-manager.blade.ph
 # ============================================================
 echo -e "${YELLOW}🛣️ Menambahkan Route...${NC}"
 
+# Cek apakah route sudah ada
 if grep -q "protect-manager" routes/admin.php; then
     echo -e "${YELLOW}⚠️ Route sudah ada, skip...${NC}"
 else
+    # Backup route
     cp routes/admin.php "$BACKUP_DIR/admin.php.bak"
     
+    # Tambah route di awal
     sed -i "1i\\
 Route::get('/protect-manager', function () {\\
     if (auth()->user()->id !== 1) {\\
@@ -142,7 +148,9 @@ if grep -q "Protect Manager" "$LAYOUT_FILE"; then
 else
     cp "$LAYOUT_FILE" "$BACKUP_DIR/admin.blade.php.bak"
     
+    # Cari posisi sidebar navigation
     if grep -q "nav-item" "$LAYOUT_FILE"; then
+        # Tambahkan sebelum </ul> atau setelah nav-item terakhir
         sed -i "/<\/ul>/i\\
                 <li class=\"nav-item\">\\
                     <a href=\"{{ route('admin.protect.manager') }}\" class=\"nav-link\">\\
@@ -191,3 +199,4 @@ echo -e "${BLUE}📍 Akses: Panel → Sidebar → Protect Manager${NC}"
 echo -e "${BLUE}🔒 Hanya Admin ID 1 yang bisa akses${NC}"
 echo -e ""
 echo -e "${YELLOW}📁 Backup disimpan di: $BACKUP_DIR${NC}"
+echo -e "${YELLOW}⚠️ Jika error, restore: cp -r $BACKUP_DIR/* /var/www/pterodactyl/${NC}"
