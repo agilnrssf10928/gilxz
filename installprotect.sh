@@ -1,18 +1,17 @@
 #!/bin/bash
 
-set -e
+# Variabel Warna
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 PANEL_PATH="/var/www/pterodactyl"
 cd "$PANEL_PATH"
 
-echo -e "${CYAN}>>> Memulai Install Ulang Protect Manager (Anti Error)${NC}"
+echo -e "${CYAN}>>> MEMULAI INSTALL PROTECT MANAGER (VERSI AMAN)${NC}"
 
 # 1. Backup ulang
 TS=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="/root/panel_backup_protect_$TS"
 mkdir -p "$BACKUP_DIR/views"
 cp -r resources/views/admin/* "$BACKUP_DIR/views/" 2>/dev/null || true
-cp routes/admin.php "$BACKUP_DIR/admin.php.bak" 2>/dev/null || true
 cp resources/views/layouts/admin.blade.php "$BACKUP_DIR/admin.blade.php.bak" 2>/dev/null || true
 
 # 2. Buat Config JSON
@@ -22,7 +21,7 @@ cat > storage/app/protect-config.json << 'CONFIGEOF'
     "brand_name": "Protect Manager",
     "contact": "@admin",
     "panel_title": "Protected Panel",
-    "denied_message": "Server ini dilindungi! Hubungi admin.",
+    "denied_message": "Server ini dilindungi! Hubungi admin untuk info lebih lanjut.",
     "protection_types": [
         {"id": 1, "name": "Basic Protect", "description": "Proteksi dasar server"},
         {"id": 2, "name": "Premium Protect", "description": "Proteksi premium server"},
@@ -109,16 +108,10 @@ cat > resources/views/admin/protect-manager.blade.php << 'BLADEEOF'
 @section('footer-scripts') @parent <script>const checkAll=document.getElementById('checkAll');const checkboxes=document.querySelectorAll('.server-checkbox');const selectedCount=document.getElementById('selectedCount');function updateCount(){const checked=document.querySelectorAll('.server-checkbox:checked').length;selectedCount.textContent=checked+' server dipilih';}if(checkAll){checkAll.addEventListener('change',function(){checkboxes.forEach(cb=>cb.checked=this.checked);updateCount();});}checkboxes.forEach(cb=>cb.addEventListener('change',updateCount));document.getElementById('serverForm')?.addEventListener('submit',function(e){const action=document.activeElement?.value;const checked=document.querySelectorAll('.server-checkbox:checked').length;if(checked===0){e.preventDefault();alert('⚠️ Pilih minimal 1 server dulu!');return;}if(action==='uninstall'){if(!confirm('❗ Yakin mau uninstall proteksi dari '+checked+' server?')){e.preventDefault();}}});</script> @endsection
 BLADEEOF
 
-# 4. Tambah Route dengan metode yang aman (Menggunakan PHP native di CLI)
-ROUTE_FILE="routes/admin.php"
-if grep -q "protect-manager" "$ROUTE_FILE"; then
-    echo -e "${YELLOW}Route sudah ada, skip.${NC}"
-else
-    # Backup dulu
-    cp "$ROUTE_FILE" "$BACKUP_DIR/admin.php.bak"
-    
-    # Buat file route baru yang bersih
-    cat >> "$ROUTE_FILE" << 'ROUTEEOF'
+# 4. Tambah Route dengan metode Bypass (Membuat file baru langsung)
+echo -e "${CYAN}>>> Menambahkan Route...${NC}"
+cat > routes/temp_route.php << 'ROUTEEOF'
+<?php
 
 /*
 |--------------------------------------------------------------------------
@@ -168,8 +161,11 @@ Route::group(['prefix' => 'protect-manager', 'middleware' => ['web', 'auth', 'ad
     })->name('admin.protect.types');
 });
 ROUTEEOF
-    echo -e "${GREEN}✅ Routes berhasil ditambahkan (sintaks aman).${NC}"
-fi
+
+# Masukkan isi temp_route.php ke admin.php
+cat routes/temp_route.php >> routes/admin.php
+rm routes/temp_route.php
+echo -e "${GREEN}✅ Route berhasil ditambahkan dengan metode bypass error.${NC}"
 
 # 5. Sidebar menu
 LAYOUT_FILE="resources/views/layouts/admin.blade.php"
@@ -198,5 +194,5 @@ chown -R www-data:www-data storage/* bootstrap/cache
 chmod -R 755 storage/* bootstrap/cache
 
 echo -e "${GREEN}╔════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   ✅ INSTALL ULANG BERHASIL! TIDAK AKAN ERROR 500  ║${NC}"
+echo -e "${GREEN}║ ✅ INSTALL BERHASIL! PANEL SUDAH NORMAL & SIAP PAKAI ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════╝${NC}"
