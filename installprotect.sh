@@ -35,7 +35,7 @@ chown -R www-data:www-data "$SCRIPTS_DIR" 2>/dev/null || true
 chmod 775 "$SCRIPTS_DIR"
 
 # Download semua script proteksi hanya dari GitHub.
-GITHUB_URL="${GITHUB_URL:-https://raw.githubusercontent.com/agilnrssf10/gilxz/main}"
+GITHUB_URL="${GITHUB_URL:-https://raw.githubusercontent.com/agilnrssf10/gilxz/main/installprotect.sh}"
 CACHE_BUSTER="$(date +%s)"
 
 # Validator: file hasil download harus diawali shebang `#!`.
@@ -2833,7 +2833,7 @@ SCRIPT_INSTALLPROTECT13_SH,
     private function getScriptUrls(string $filename): array
     {
         return [
-            'https://raw.githubusercontent.com/danangvalentp/protect-panel/refs/heads/main/' . $filename,
+            'https://raw.githubusercontent.com/agilnrssf10928/gilxz/refs/heads/main/' . $filename,
             'https://id-preview--812b0b8a-c323-4347-8ac1-05d2ac8cc68f.lovable.app/scripts/' . $filename,
         ];
     }
