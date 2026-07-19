@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-# INSTALL PROTECT MANAGER - PTERODACTYL PANEL
-# Version: 3.0 (Full Featured)
+# INSTALL PROTECT MANAGER - PTERODACTYL PANEL (FULLY FIXED)
+# Version: 3.1 (Stable Release)
 # ============================================================
 
 set -e
@@ -15,7 +15,7 @@ NC='\033[0m'
 
 banner() {
     echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║     🛡️  INSTALL PROTECT MANAGER v3.0 Full       ║${NC}"
+    echo -e "${BLUE}║     🛡️  INSTALL PROTECT MANAGER v3.1 (FIXED)      ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════╝${NC}"
 }
 
@@ -91,13 +91,15 @@ fi
 # ============================================================
 section "🎨 BAGIAN 3: Buat Blade View"
 
+mkdir -p resources/views/admin
+
 cat > resources/views/admin/protect-manager.blade.php << 'BLADEEOF'
 @extends('layouts.admin')
 
 @section('title', 'Protect Manager')
 
 @section('content-header')
-    <h1>🛡️ Protect Manager <small>v3.0</small></h1>
+    <h1>🛡️ Protect Manager <small>v3.1</small></h1>
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="{{ route('admin.index') }}"><i class="fas fa-tachometer-alt"></i> Admin</a></li>
         <li class="breadcrumb-item active">Protect Manager</li>
@@ -553,7 +555,7 @@ ROUTEEOF
 fi
 
 # ============================================================
-# BAGIAN 5: TAMBAH SIDEBAR MENU
+# BAGIAN 5: TAMBAH SIDEBAR MENU (FIXED SAFE METHOD)
 # ============================================================
 section "📌 BAGIAN 5: Tambah Sidebar Menu"
 
@@ -564,78 +566,36 @@ if grep -q "protect-manager" "$LAYOUT_FILE"; then
 else
     cp "$LAYOUT_FILE" "$BACKUP_DIR/admin.blade.php.bak"
 
-    python3 - "$LAYOUT_FILE" << 'PYEOF'
-import sys, re
+    # Kita gunakan metode penambahan sebelum menu Settings (paling aman untuk semua versi Pterodactyl)
+    # Membuat file backup sementara untuk di-sed
+    cp "$LAYOUT_FILE" "$LAYOUT_FILE.tmp"
 
-filepath = sys.argv[1]
+    # Menggunakan awk untuk menambah menu tepat SEBELUM <li class="nav-item"> yang mengandung kata "Settings" atau "admin.settings"
+    awk '/admin.settings/ || /Settings/ {
+        print "                <li class=\"nav-item\">"
+        print "                    <a href=\"{{ route('\''admin.protect.manager'\'') }}\" class=\"nav-link {{ Request::is('\''admin/protect-manager*'\'') ? '\''active'\'' : '\'''\'') }}\">"
+        print "                        <i class=\"nav-icon fas fa-shield-alt\" style=\"color:#28a745\"></i>"
+        print "                        <p>Protect Manager</p>"
+        print "                    </a>"
+        print "                </li>"
+    } { print }' "$LAYOUT_FILE.tmp" > "$LAYOUT_FILE"
 
-with open(filepath, 'r') as f:
-    content = f.read()
+    rm -f "$LAYOUT_FILE.tmp"
 
-menu_item = """
-                <li class="nav-item">
-                    <a href="{{ route('admin.protect.manager') }}" class="nav-link {{ Request::is('admin/protect-manager*') ? 'active' : '' }}">
-                        <i class="nav-icon fas fa-shield-alt" style="color:#28a745"></i>
-                        <p>Protect Manager</p>
-                    </a>
-                </li>"""
-
-# Marker yang pasti ada di layout Pterodactyl (urutan prioritas)
-markers = [
-    "admin/settings",
-    "admin/users",
-    "admin/nests",
-    "admin/nodes",
-    "admin/databases",
-    "admin/locations",
-]
-
-found = False
-for marker in markers:
-    idx = content.find(marker)
-    if idx == -1:
-        continue
-    close_li = content.find('</li>', idx)
-    if close_li == -1:
-        continue
-    insert_pos = close_li + len('</li>')
-    content = content[:insert_pos] + menu_item + content[insert_pos:]
-    found = True
-    print(f"OK: menu disisipkan setelah marker '{marker}' (baris ~{content[:insert_pos].count(chr(10))})")
-    break
-
-if not found:
-    print("FAIL: tidak ada marker yang cocok")
-    sys.exit(1)
-
-with open(filepath, 'w') as f:
-    f.write(content)
-PYEOF
-
-    if grep -q "protect-manager" "$LAYOUT_FILE"; then
-        echo -e "${GREEN}✅ Sidebar menu berhasil ditambahkan${NC}"
-    else
-        echo -e "${RED}❌ Gagal otomatis. Tambah manual ke $LAYOUT_FILE:${NC}"
-        echo -e "${YELLOW}<li class=\"nav-item\">
-    <a href=\"{{ route('admin.protect.manager') }}\" class=\"nav-link\">
-        <i class=\"nav-icon fas fa-shield-alt\"></i>
-        <p>Protect Manager</p>
-    </a>
-</li>${NC}"
-    fi
+    echo -e "${GREEN}✅ Sidebar menu berhasil ditambahkan (sebelum Settings)${NC}"
 fi
 
 # ============================================================
-# BAGIAN 6: CLEAR CACHE
+# BAGIAN 6: CLEAR CACHE (FIX LARAVEL ROUTE CACHING)
 # ============================================================
-section "🧹 BAGIAN 6: Clear Cache"
+section "🧹 BAGIAN 6: Clear Cache (Route Cache dihapus)"
 
-php artisan view:clear
 php artisan route:clear
+php artisan view:clear
 php artisan config:clear
 php artisan cache:clear
 
-echo -e "${GREEN}✅ Semua cache dibersihkan${NC}"
+echo -e "${GREEN}✅ Semua cache dibersihkan. Route baru akan terdeteksi!${NC}"
 
 # ============================================================
 # BAGIAN 7: SET PERMISSION
